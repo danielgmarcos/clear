@@ -11,9 +11,9 @@
   <DefaultLocale>en-US</DefaultLocale>
   <DisplayName DefaultValue="ClearDrop"/>
   <Description DefaultValue="Analyze emails for phishing using ClearDrop"/>
-  <IconUrl DefaultValue="https://danielgmarcos.github.io/clear/assets/icon-64.png"/>
-  <HighResolutionIconUrl DefaultValue="https://danielgmarcos.github.io/clear/assets/icon-128.png"/>
-  <SupportUrl DefaultValue="https://danielgmarcos.github.io/clear/support.html"/>
+  <IconUrl DefaultValue="https://danielgmarcos.github.io/clear/src/assets/icon-64.png"/>
+  <HighResolutionIconUrl DefaultValue="https://danielgmarcos.github.io/clear/src/assets/icon-128.png"/>
+  <SupportUrl DefaultValue="https://danielgmarcos.github.io/clear/src/support.html"/>
 
   <AppDomains>
     <AppDomain>https://danielgmarcos.github.io</AppDomain>
@@ -32,7 +32,7 @@
   <FormSettings>
     <Form xsi:type="ItemRead">
       <DesktopSettings>
-        <SourceLocation DefaultValue="https://danielgmarcos.github.io/clear/taskpane.html"/>
+        <SourceLocation DefaultValue="https://danielgmarcos.github.io/clear/src/taskpane.html"/>
         <RequestedHeight>380</RequestedHeight>
       </DesktopSettings>
     </Form>
@@ -82,13 +82,13 @@
     </Hosts>
     <Resources>
       <bt:Images>
-        <bt:Image id="ClearDrop.Icon16" DefaultValue="https://danielgmarcos.github.io/clear/assets/icon-16.png"/>
-        <bt:Image id="ClearDrop.Icon32" DefaultValue="https://danielgmarcos.github.io/clear/assets/icon-32.png"/>
-        <bt:Image id="ClearDrop.Icon80" DefaultValue="https://danielgmarcos.github.io/clear/assets/icon-80.png"/>
+        <bt:Image id="ClearDrop.Icon16" DefaultValue="https://danielgmarcos.github.io/clear/src/assets/icon-16.png"/>
+        <bt:Image id="ClearDrop.Icon32" DefaultValue="https://danielgmarcos.github.io/clear/src/assets/icon-32.png"/>
+        <bt:Image id="ClearDrop.Icon80" DefaultValue="https://danielgmarcos.github.io/clear/src/assets/icon-80.png"/>
       </bt:Images>
       <bt:Urls>
-        <bt:Url id="Commands.Url" DefaultValue="https://danielgmarcos.github.io/clear/commands.html"/>
-        <bt:Url id="Taskpane.Url" DefaultValue="https://danielgmarcos.github.io/clear/taskpane.html"/>
+        <bt:Url id="Commands.Url" DefaultValue="https://danielgmarcos.github.io/clear/src/commands.html"/>
+        <bt:Url id="Taskpane.Url" DefaultValue="https://danielgmarcos.github.io/clear/src/taskpane.html"/>
       </bt:Urls>
       <bt:ShortStrings>
         <bt:String id="ClearDrop.GroupLabel" DefaultValue="ClearDrop"/>
