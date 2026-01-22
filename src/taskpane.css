@@ -182,6 +182,89 @@ button:disabled {
   letter-spacing: 0.8px;
 }
 
+.gauge-card {
+  display: grid;
+  gap: 12px;
+}
+
+.gauge-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.gauge {
+  position: relative;
+  width: 100%;
+  max-width: 260px;
+  margin: 0 auto;
+  aspect-ratio: 2 / 1;
+}
+
+.gauge-arc {
+  position: absolute;
+  inset: 0;
+  border-radius: 999px 999px 0 0;
+  background: conic-gradient(
+    from 180deg,
+    #2bb673 0deg,
+    #f6c851 90deg,
+    #f06459 180deg
+  );
+  mask: radial-gradient(circle at center, transparent 55%, #000 56%);
+}
+
+.gauge-needle {
+  position: absolute;
+  left: 50%;
+  bottom: 8px;
+  width: 4px;
+  height: 60%;
+  background: #1c2d40;
+  border-radius: 6px;
+  transform-origin: 50% 100%;
+  transform: translateX(-50%) rotate(var(--gauge-rotate, 180deg));
+  transition: transform 320ms ease-out;
+}
+
+.gauge::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: 4px;
+  width: 12px;
+  height: 12px;
+  background: #1c2d40;
+  border-radius: 50%;
+  transform: translateX(-50%);
+}
+
+.gauge-labels {
+  position: absolute;
+  bottom: -4px;
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.gauge[data-state="safe"] .gauge-needle,
+.gauge[data-state="safe"]::after {
+  background: #1f7f50;
+}
+
+.gauge[data-state="warning"] .gauge-needle,
+.gauge[data-state="warning"]::after {
+  background: #b27810;
+}
+
+.gauge[data-state="danger"] .gauge-needle,
+.gauge[data-state="danger"]::after {
+  background: #b23c3c;
+}
+
 .result-card {
   animation: lift-in 420ms ease-out;
 }

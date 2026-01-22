@@ -4,6 +4,8 @@
   const apiInput = document.getElementById("api-url");
   const statusEl = document.getElementById("status");
   const resultEl = document.getElementById("result");
+  const gaugeEl = document.querySelector(".gauge");
+  const gaugeVerdictEl = document.getElementById("gauge-verdict");
 
   function setStatus(message, isError) {
     statusEl.textContent = message;
@@ -13,6 +15,56 @@
 
   function setResult(value) {
     resultEl.textContent = value || "";
+  }
+
+  function updateGauge(score, verdict) {
+    if (!gaugeEl || !gaugeVerdictEl) {
+      return;
+    }
+
+    if (typeof score !== "number" || Number.isNaN(score)) {
+      gaugeEl.style.setProperty("--gauge-rotate", "180deg");
+      gaugeEl.dataset.state = "idle";
+      gaugeVerdictEl.textContent = verdict || "Awaiting analysis";
+      gaugeVerdictEl.classList.add("muted");
+      return;
+    }
+
+    const clamped = Math.max(0, Math.min(100, score));
+    const rotate = 180 - (clamped / 100) * 180;
+    gaugeEl.style.setProperty("--gauge-rotate", `${rotate}deg`);
+    gaugeVerdictEl.classList.remove("muted");
+
+    const verdictText = verdict || (clamped < 35 ? "Safe" : clamped < 70 ? "Suspicious" : "Phishing");
+    gaugeVerdictEl.textContent = verdictText;
+
+    if (/safe/i.test(verdictText) || clamped < 35) {
+      gaugeEl.dataset.state = "safe";
+    } else if (/suspicious|warning/i.test(verdictText) || clamped < 70) {
+      gaugeEl.dataset.state = "warning";
+    } else {
+      gaugeEl.dataset.state = "danger";
+    }
+  }
+
+  function extractScore(payload) {
+    if (!payload || typeof payload !== "object") {
+      return null;
+    }
+    const score = Number(payload.model_confidence ?? payload.rules_score);
+    return Number.isFinite(score) ? score : null;
+  }
+
+  function extractVerdict(payload) {
+    if (!payload || typeof payload !== "object") {
+      return "";
+    }
+    return (
+      payload.final_verdict ||
+      payload.rules_verdict ||
+      payload.model_verdict ||
+      ""
+    );
   }
 
   function getApiUrl() {
@@ -69,6 +121,7 @@
 
     setStatus("Collecting email content...");
     setResult("");
+    updateGauge(null, "Collecting email...");
 
     let bodyText = "";
     try {
@@ -92,6 +145,7 @@
     };
 
     setStatus("Sending for analysis...");
+    updateGauge(null, "Analyzing...");
 
     try {
       const response = await fetch(apiUrl, {
@@ -106,27 +160,33 @@
       if (!response.ok) {
         setStatus(`API error (${response.status}).`, true);
         setResult(text);
+        updateGauge(null, "Analysis failed");
         return;
       }
 
       let output = text;
+      let parsed = null;
       try {
-        output = JSON.stringify(JSON.parse(text), null, 2);
+        parsed = JSON.parse(text);
+        output = JSON.stringify(parsed, null, 2);
       } catch (error) {
         // keep raw text
       }
 
       setStatus("Analysis complete.");
       setResult(output);
+      updateGauge(extractScore(parsed), extractVerdict(parsed));
     } catch (error) {
       setStatus("Network error sending to API.", true);
       setResult(String(error));
+      updateGauge(null, "Network error");
     }
   }
 
   Office.onReady(() => {
     loadApiUrl();
     updateAnalyzeState();
+    updateGauge(null, "Awaiting analysis");
     analyzeButton.addEventListener("click", analyzeEmail);
     apiInput.addEventListener("input", updateAnalyzeState);
   });
