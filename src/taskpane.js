@@ -5,9 +5,13 @@
   const apiInput = document.getElementById("api-url");
   const statusEl = document.getElementById("status");
   const resultEl = document.getElementById("result");
-  const gaugeEl = document.querySelector(".gauge");
-  const gaugeVerdictEl = document.getElementById("gauge-verdict");
+  const verdictCard = document.querySelector(".verdict-card");
+  const verdictPill = document.getElementById("verdict-pill");
+  const verdictTitle = document.getElementById("verdict-title");
+  const verdictSubtitle = document.getElementById("verdict-subtitle");
   const versionEl = document.getElementById("ui-version");
+  const resultCard = document.getElementById("result-card");
+  const toggleResultButton = document.getElementById("toggle-result");
 
   function setStatus(message, isError) {
     statusEl.textContent = message;
@@ -19,33 +23,36 @@
     resultEl.textContent = value || "";
   }
 
-  function updateGauge(score, verdict) {
-    if (!gaugeEl || !gaugeVerdictEl) {
+  function updateVerdict(score, verdict) {
+    if (!verdictCard || !verdictPill || !verdictTitle || !verdictSubtitle) {
       return;
     }
 
     if (typeof score !== "number" || Number.isNaN(score)) {
-      gaugeEl.style.setProperty("--gauge-rotate", "180deg");
-      gaugeEl.dataset.state = "idle";
-      gaugeVerdictEl.textContent = verdict || "Awaiting analysis";
-      gaugeVerdictEl.classList.add("muted");
+      verdictCard.dataset.state = "idle";
+      verdictPill.textContent = verdict || "Awaiting analysis";
+      verdictPill.className = "verdict-pill neutral";
+      verdictTitle.textContent = "No scan yet";
+      verdictSubtitle.textContent = "Run an analysis to see the verdict.";
       return;
     }
 
     const clamped = Math.max(0, Math.min(100, score));
-    const rotate = 180 - (clamped / 100) * 180;
-    gaugeEl.style.setProperty("--gauge-rotate", `${rotate}deg`);
-    gaugeVerdictEl.classList.remove("muted");
-
-    const verdictText = verdict || (clamped < 35 ? "Safe" : clamped < 70 ? "Suspicious" : "Phishing");
-    gaugeVerdictEl.textContent = verdictText;
+    const verdictText =
+      verdict || (clamped < 35 ? "Safe" : clamped < 70 ? "Suspicious" : "Phishing");
+    verdictPill.textContent = verdictText;
+    verdictTitle.textContent = verdictText;
+    verdictSubtitle.textContent = `Risk score: ${clamped}%`;
 
     if (/safe/i.test(verdictText) || clamped < 35) {
-      gaugeEl.dataset.state = "safe";
+      verdictCard.dataset.state = "safe";
+      verdictPill.className = "verdict-pill safe";
     } else if (/suspicious|warning/i.test(verdictText) || clamped < 70) {
-      gaugeEl.dataset.state = "warning";
+      verdictCard.dataset.state = "warning";
+      verdictPill.className = "verdict-pill warning";
     } else {
-      gaugeEl.dataset.state = "danger";
+      verdictCard.dataset.state = "danger";
+      verdictPill.className = "verdict-pill danger";
     }
   }
 
@@ -108,6 +115,130 @@
     });
   }
 
+  function getBodyHtml() {
+    return new Promise((resolve, reject) => {
+      Office.context.mailbox.item.body.getAsync(
+        Office.CoercionType.Html,
+        (result) => {
+          if (result.status === Office.AsyncResultStatus.Succeeded) {
+            resolve(result.value || "");
+          } else {
+            reject(result.error || new Error("Failed to read body HTML"));
+          }
+        }
+      );
+    });
+  }
+
+  function extractTextFromHtml(html) {
+    if (!html) {
+      return "";
+    }
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(html, "text/html");
+    return (doc.body && doc.body.textContent ? doc.body.textContent : "").trim();
+  }
+
+  function extractLinksFromHtml(html) {
+    if (!html) {
+      return [];
+    }
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(html, "text/html");
+    const anchors = Array.from(doc.querySelectorAll("a[href]"));
+    const hrefs = anchors.map((anchor) => anchor.getAttribute("href") || "").filter(Boolean);
+    return Array.from(new Set(hrefs));
+  }
+
+  function extractLinksFromText(text) {
+    if (!text) {
+      return [];
+    }
+    const urlRegex = /\bhttps?:\/\/[^\s<>"')]+/gi;
+    return Array.from(new Set(text.match(urlRegex) || []));
+  }
+
+  async function collectBody() {
+    let bodyHtml = "";
+    let bodyText = "";
+
+    try {
+      bodyHtml = await getBodyHtml();
+    } catch (error) {
+      bodyHtml = "";
+    }
+
+    try {
+      bodyText = await getBodyText();
+    } catch (error) {
+      bodyText = "";
+    }
+
+    if (!bodyText && bodyHtml) {
+      bodyText = extractTextFromHtml(bodyHtml);
+    }
+
+    const links = bodyHtml
+      ? extractLinksFromHtml(bodyHtml)
+      : extractLinksFromText(bodyText);
+
+    return { bodyHtml, bodyText, links };
+  }
+
+  async function collectAttachments(item) {
+    const attachments = Array.isArray(item.attachments) ? item.attachments : [];
+    if (!attachments.length) {
+      return [];
+    }
+
+    if (typeof item.getAttachmentContentAsync !== "function") {
+      return attachments.map((att) => ({
+        id: att.id,
+        name: att.name,
+        size: att.size,
+        contentType: att.contentType,
+        isInline: att.isInline,
+        content: null,
+        contentFormat: null,
+        error: "Attachment content API not available.",
+      }));
+    }
+
+    const results = await Promise.all(
+      attachments.map(
+        (att) =>
+          new Promise((resolve) => {
+            item.getAttachmentContentAsync(att.id, (result) => {
+              if (result.status === Office.AsyncResultStatus.Succeeded) {
+                resolve({
+                  id: att.id,
+                  name: att.name,
+                  size: att.size,
+                  contentType: att.contentType,
+                  isInline: att.isInline,
+                  content: result.value.content,
+                  contentFormat: result.value.format,
+                });
+              } else {
+                resolve({
+                  id: att.id,
+                  name: att.name,
+                  size: att.size,
+                  contentType: att.contentType,
+                  isInline: att.isInline,
+                  content: null,
+                  contentFormat: null,
+                  error: result.error ? result.error.message : "Attachment fetch failed.",
+                });
+              }
+            });
+          })
+      )
+    );
+
+    return results;
+  }
+
   async function analyzeEmail() {
     const apiUrl = getApiUrl();
     if (!apiUrl) {
@@ -123,14 +254,26 @@
 
     setStatus("Collecting email content...");
     setResult("");
-    updateGauge(null, "Collecting email...");
+    updateVerdict(null, "Collecting email...");
 
     let bodyText = "";
+    let bodyHtml = "";
+    let links = [];
+    let attachments = [];
     try {
-      bodyText = await getBodyText();
+      const bodyInfo = await collectBody();
+      bodyText = bodyInfo.bodyText;
+      bodyHtml = bodyInfo.bodyHtml;
+      links = bodyInfo.links;
     } catch (error) {
       setStatus("Could not read email body.", true);
       return;
+    }
+
+    try {
+      attachments = await collectAttachments(item);
+    } catch (error) {
+      attachments = [];
     }
 
     const payload = {
@@ -140,14 +283,18 @@
         : null,
       to: getRecipients(item.to),
       cc: getRecipients(item.cc),
+      bcc: getRecipients(item.bcc),
       itemId: item.itemId || "",
       internetMessageId: item.internetMessageId || "",
       bodyText,
+      bodyHtml,
+      links,
+      attachments,
       receivedDateTime: item.dateTimeCreated || "",
     };
 
     setStatus("Sending for analysis...");
-    updateGauge(null, "Analyzing...");
+    updateVerdict(null, "Analyzing...");
 
     try {
       const response = await fetch(apiUrl, {
@@ -162,7 +309,7 @@
       if (!response.ok) {
         setStatus(`API error (${response.status}).`, true);
         setResult(text);
-        updateGauge(null, "Analysis failed");
+        updateVerdict(null, "Analysis failed");
         return;
       }
 
@@ -177,20 +324,26 @@
 
       setStatus("Analysis complete.");
       setResult(output);
-      updateGauge(extractScore(parsed), extractVerdict(parsed));
+      updateVerdict(extractScore(parsed), extractVerdict(parsed));
     } catch (error) {
       setStatus("Network error sending to API.", true);
       setResult(String(error));
-      updateGauge(null, "Network error");
+      updateVerdict(null, "Network error");
     }
   }
 
   Office.onReady(() => {
     loadApiUrl();
     updateAnalyzeState();
-    updateGauge(null, "Awaiting analysis");
+    updateVerdict(null, "Awaiting analysis");
     if (versionEl) {
       versionEl.textContent = `v${uiVersion}`;
+    }
+    if (toggleResultButton && resultCard) {
+      toggleResultButton.addEventListener("click", () => {
+        const isHidden = resultCard.classList.toggle("is-hidden");
+        toggleResultButton.textContent = isHidden ? "See reasoning" : "Hide reasoning";
+      });
     }
     analyzeButton.addEventListener("click", analyzeEmail);
     apiInput.addEventListener("input", updateAnalyzeState);
