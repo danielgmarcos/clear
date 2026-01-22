@@ -1,11 +1,13 @@
 (function () {
   const defaultApiUrl = "https://cleardrop.wit-software.com/analyze";
+  const uiVersion = "0.1.0";
   const analyzeButton = document.getElementById("analyze");
   const apiInput = document.getElementById("api-url");
   const statusEl = document.getElementById("status");
   const resultEl = document.getElementById("result");
   const gaugeEl = document.querySelector(".gauge");
   const gaugeVerdictEl = document.getElementById("gauge-verdict");
+  const versionEl = document.getElementById("ui-version");
 
   function setStatus(message, isError) {
     statusEl.textContent = message;
@@ -187,6 +189,9 @@
     loadApiUrl();
     updateAnalyzeState();
     updateGauge(null, "Awaiting analysis");
+    if (versionEl) {
+      versionEl.textContent = `v${uiVersion}`;
+    }
     analyzeButton.addEventListener("click", analyzeEmail);
     apiInput.addEventListener("input", updateAnalyzeState);
   });
