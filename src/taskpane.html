@@ -10,22 +10,31 @@
   <body>
     <header class="app-header">
       <div>
+        <span class="eyebrow">Outlook Security Assistant</span>
         <h1>ClearDrop</h1>
-        <p>Analyze the current email for phishing risk.</p>
+        <p>Analyze the open email for phishing risk with your org's model.</p>
       </div>
-      <button id="analyze" class="primary" disabled>Analyze Email</button>
+      <div class="cta-stack">
+        <button id="analyze" class="primary" disabled>Analyze Email</button>
+        <span class="helper">Results stay within your organization.</span>
+      </div>
     </header>
 
-    <section class="card">
-      <h2>API Preferences</h2>
-      <p class="muted">This add-in uses an organization-managed analysis endpoint.</p>
+    <section class="card meta">
+      <div>
+        <h2>Managed Endpoint</h2>
+        <p class="muted">This add-in uses an organization-managed analysis endpoint.</p>
+      </div>
+      <div class="pill">Locked</div>
       <input id="api-url" type="url" value="https://cleardrop.wit-software.com/analyze" readonly hidden />
     </section>
 
-    <section class="card">
-      <h2>Result</h2>
-      <div id="status" class="status muted">Ready.</div>
-      <pre id="result" class="result"></pre>
+    <section class="card result-card">
+      <div class="result-header">
+        <h2>Result</h2>
+        <span id="status" class="status muted">Ready.</span>
+      </div>
+      <pre id="result" class="result" aria-live="polite"></pre>
     </section>
 
     <script src="taskpane.js"></script>
