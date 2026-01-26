@@ -125,6 +125,12 @@ button.primary {
   box-shadow: 0 10px 20px rgba(74, 163, 255, 0.28);
 }
 
+button.danger {
+  background: #dc2626;
+  color: #fff5f5;
+  box-shadow: 0 10px 18px rgba(220, 38, 38, 0.24);
+}
+
 button:disabled {
   opacity: 0.5;
   cursor: not-allowed;
@@ -240,6 +246,17 @@ button:disabled {
 
 .verdict-subtitle {
   margin-top: 4px;
+  font-size: 12px;
+}
+
+.verdict-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.action-note {
   font-size: 12px;
 }
 

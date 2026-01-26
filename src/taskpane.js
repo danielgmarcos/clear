@@ -9,6 +9,8 @@
   const verdictPill = document.getElementById("verdict-pill");
   const verdictTitle = document.getElementById("verdict-title");
   const verdictSubtitle = document.getElementById("verdict-subtitle");
+  const markPhishingButton = document.getElementById("mark-phishing");
+  const actionNote = document.getElementById("action-note");
   const versionEl = document.getElementById("ui-version");
   const resultCard = document.getElementById("result-card");
   const toggleResultButton = document.getElementById("toggle-result");
@@ -54,6 +56,54 @@
       verdictCard.dataset.state = "danger";
       verdictPill.className = "verdict-pill danger";
     }
+  }
+
+  function togglePhishingAction(show) {
+    if (!markPhishingButton || !actionNote) {
+      return;
+    }
+    if (show) {
+      markPhishingButton.hidden = false;
+      actionNote.hidden = true;
+      actionNote.textContent = "";
+    } else {
+      markPhishingButton.hidden = true;
+      actionNote.hidden = true;
+      actionNote.textContent = "";
+    }
+  }
+
+  function setActionNote(message) {
+    if (!actionNote) {
+      return;
+    }
+    actionNote.textContent = message;
+    actionNote.hidden = false;
+  }
+
+  function markAsPhishing() {
+    const item = Office.context.mailbox.item;
+    const reportFn =
+      (item && typeof item.reportPhishingAsync === "function" && item.reportPhishingAsync.bind(item)) ||
+      (Office.context.mailbox &&
+        typeof Office.context.mailbox.reportPhishingAsync === "function" &&
+        Office.context.mailbox.reportPhishingAsync.bind(Office.context.mailbox));
+
+    if (!reportFn) {
+      setActionNote(
+        "Outlook doesn't expose Report Phishing here. Please use Report > Report Phishing in Outlook."
+      );
+      return;
+    }
+
+    reportFn((result) => {
+      if (result && result.status === Office.AsyncResultStatus.Succeeded) {
+        setActionNote("Reported as phishing.");
+      } else {
+        const err = result && result.error ? result.error.message : "Report failed.";
+        setActionNote(err);
+      }
+    });
   }
 
   function extractScore(payload) {
@@ -255,6 +305,7 @@
     setStatus("Collecting email content...");
     setResult("");
     updateVerdict(null, "Collecting email...");
+    togglePhishingAction(false);
 
     let bodyText = "";
     let bodyHtml = "";
@@ -276,6 +327,19 @@
       attachments = [];
     }
 
+    const headers = await new Promise((resolve) => {
+      if (typeof item.getAllInternetHeadersAsync !== "function") {
+        return resolve("");
+      }
+      item.getAllInternetHeadersAsync((result) => {
+        if (result.status === Office.AsyncResultStatus.Succeeded) {
+          resolve(result.value || "");
+        } else {
+          resolve("");
+        }
+      });
+    });
+
     const payload = {
       subject: item.subject || "",
       from: item.from
@@ -290,6 +354,7 @@
       bodyHtml,
       links,
       attachments,
+      headers,
       receivedDateTime: item.dateTimeCreated || "",
     };
 
@@ -324,7 +389,11 @@
 
       setStatus("Analysis complete.");
       setResult(output);
-      updateVerdict(extractScore(parsed), extractVerdict(parsed));
+      const verdictText = extractVerdict(parsed);
+      updateVerdict(extractScore(parsed), verdictText);
+      if (verdictText && /phish|malicious/i.test(verdictText)) {
+        togglePhishingAction(true);
+      }
     } catch (error) {
       setStatus("Network error sending to API.", true);
       setResult(String(error));
@@ -346,6 +415,9 @@
       });
     }
     analyzeButton.addEventListener("click", analyzeEmail);
+    if (markPhishingButton) {
+      markPhishingButton.addEventListener("click", markAsPhishing);
+    }
     apiInput.addEventListener("input", updateAnalyzeState);
   });
 })();
