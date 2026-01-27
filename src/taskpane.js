@@ -505,7 +505,7 @@
       const verdictText = extractVerdict(parsed);
       updateVerdict(extractScore(parsed), verdictText);
       toggleReasoning(true, buildUserReasons(parsed));
-      if (verdictText && /phish|malicious/i.test(verdictText)) {
+      if (verdictText && /phish|malicious|suspicious/i.test(verdictText)) {
         togglePhishingAction(true);
       }
     } catch (error) {
