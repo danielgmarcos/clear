@@ -260,6 +260,29 @@ button:disabled {
   font-size: 12px;
 }
 
+.reasoning-panel {
+  padding: 12px;
+  border-radius: 12px;
+  background: #f6f9fd;
+  border: 1px dashed var(--border);
+}
+
+.reasoning-title {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: var(--muted);
+  margin-bottom: 8px;
+}
+
+.reasoning-list {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 13px;
+  color: #203044;
+  line-height: 1.5;
+}
+
 .verdict-pill {
   padding: 6px 12px;
   border-radius: 999px;

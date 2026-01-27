@@ -9,6 +9,8 @@
   const verdictPill = document.getElementById("verdict-pill");
   const verdictTitle = document.getElementById("verdict-title");
   const verdictSubtitle = document.getElementById("verdict-subtitle");
+  const reasoningPanel = document.getElementById("reasoning-panel");
+  const reasoningList = document.getElementById("reasoning-list");
   const markPhishingButton = document.getElementById("mark-phishing");
   const actionNote = document.getElementById("action-note");
   const versionEl = document.getElementById("ui-version");
@@ -36,6 +38,7 @@
       verdictPill.className = "verdict-pill neutral";
       verdictTitle.textContent = "No scan yet";
       verdictSubtitle.textContent = "Run an analysis to see the verdict.";
+      toggleReasoning(false, []);
       return;
     }
 
@@ -56,6 +59,66 @@
       verdictCard.dataset.state = "danger";
       verdictPill.className = "verdict-pill danger";
     }
+  }
+
+  function toggleReasoning(show, items) {
+    if (!reasoningPanel || !reasoningList) {
+      return;
+    }
+    if (!show || !items || !items.length) {
+      reasoningPanel.hidden = true;
+      reasoningList.innerHTML = "";
+      return;
+    }
+    reasoningPanel.hidden = false;
+    reasoningList.innerHTML = items.map((item) => `<li>${item}</li>`).join("");
+  }
+
+  function buildUserReasons(payload) {
+    if (!payload || typeof payload !== "object") {
+      return [];
+    }
+    const reasons = [];
+    const signals = Array.isArray(payload.signals) ? payload.signals : [];
+    const auth = payload.auth_results || {};
+
+    if (payload.feed_hit) {
+      reasons.push("A link matches a known phishing feed.");
+    }
+    if (typeof payload.domain_age_days === "number" && payload.domain_age_days < 30) {
+      reasons.push("A linked domain is very new (less than 30 days old).");
+    }
+
+    const signalText = signals.join(" ").toLowerCase();
+    if (signalText.includes("sender identity anomalies")) {
+      reasons.push("Sender name and email address don't match.");
+    }
+    if (signalText.includes("suspicious language")) {
+      reasons.push("The message uses urgent or sensitive language.");
+    }
+
+    const spf = (auth.spf || "").toLowerCase();
+    const dkim = (auth.dkim || "").toLowerCase();
+    const dmarc = (auth.dmarc || "").toLowerCase();
+    const authFails = [];
+    if (["fail", "softfail", "permerror", "temperror"].includes(spf)) {
+      authFails.push(`SPF ${spf}`);
+    }
+    if (["fail", "permerror", "temperror"].includes(dkim)) {
+      authFails.push(`DKIM ${dkim}`);
+    }
+    if (["fail", "permerror", "temperror"].includes(dmarc)) {
+      authFails.push(`DMARC ${dmarc}`);
+    }
+    if (authFails.length) {
+      reasons.push(`Email authentication failed (${authFails.join(", ")}).`);
+    }
+
+    if (!reasons.length && signals.length) {
+      reasons.push(...signals.map((s) => s.replace(/\s*\(\+\d+\)\s*/g, "")));
+    }
+
+    return reasons.slice(0, 4);
   }
 
   function togglePhishingAction(show) {
@@ -305,6 +368,7 @@
     setStatus("Collecting email content...");
     setResult("");
     updateVerdict(null, "Collecting email...");
+    toggleReasoning(false, []);
     togglePhishingAction(false);
 
     let bodyText = "";
@@ -391,6 +455,7 @@
       setResult(output);
       const verdictText = extractVerdict(parsed);
       updateVerdict(extractScore(parsed), verdictText);
+      toggleReasoning(true, buildUserReasons(parsed));
       if (verdictText && /phish|malicious/i.test(verdictText)) {
         togglePhishingAction(true);
       }
