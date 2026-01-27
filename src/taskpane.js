@@ -24,7 +24,7 @@
   }
 
   function setResult(value) {
-    resultEl.textContent = value || "";
+    resultEl.innerHTML = value || "";
   }
 
   function updateVerdict(score, verdict) {
@@ -119,6 +119,53 @@
     }
 
     return reasons.slice(0, 4);
+  }
+
+  function escapeHtml(value) {
+    return String(value || "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/\"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+  }
+
+  function buildHumanReasoning(payload) {
+    if (!payload || typeof payload !== "object") {
+      return "<p class=\"muted\">No reasoning available.</p>";
+    }
+
+    const verdict = extractVerdict(payload) || "Unknown";
+    const score = extractScore(payload);
+    const reasons = buildUserReasons(payload);
+    const modelReasoning = payload.model_reasoning || "";
+
+    let summary = "We didn’t find strong phishing indicators.";
+    if (/phish|malicious/i.test(verdict)) {
+      summary = "This email looks risky based on multiple phishing indicators.";
+    } else if (/suspicious/i.test(verdict)) {
+      summary = "This email shows some warning signs, so treat it with care.";
+    }
+
+    const scoreLine = Number.isFinite(score) ? ` Risk score: ${score}%.` : "";
+    const modelLine = modelReasoning ? ` ${modelReasoning}` : "";
+
+    const bullets = reasons.length
+      ? `<ul>${reasons.map((r) => `<li>${escapeHtml(r)}</li>`).join("")}</ul>`
+      : "<p class=\"muted\">No specific red flags were detected.</p>";
+
+    let raw = "";
+    try {
+      raw = JSON.stringify(payload, null, 2);
+    } catch (error) {
+      raw = "";
+    }
+
+    return `
+      <p><strong>${escapeHtml(verdict)}</strong> — ${escapeHtml(summary + scoreLine + modelLine)}</p>
+      ${bullets}
+      ${raw ? `<details><summary>Raw details</summary><pre>${escapeHtml(raw)}</pre></details>` : ""}
+    `;
   }
 
   function togglePhishingAction(show) {
@@ -442,17 +489,19 @@
         return;
       }
 
-      let output = text;
       let parsed = null;
       try {
         parsed = JSON.parse(text);
-        output = JSON.stringify(parsed, null, 2);
       } catch (error) {
         // keep raw text
       }
 
       setStatus("Analysis complete.");
-      setResult(output);
+      if (parsed) {
+        setResult(buildHumanReasoning(parsed));
+      } else {
+        setResult(`<p class="muted">${escapeHtml(text)}</p>`);
+      }
       const verdictText = extractVerdict(parsed);
       updateVerdict(extractScore(parsed), verdictText);
       toggleReasoning(true, buildUserReasons(parsed));
