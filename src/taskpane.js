@@ -105,6 +105,9 @@
     if (signalText.includes("suspicious language")) {
       reasons.push("The message uses urgent or sensitive language.");
     }
+    if (signalText.includes("vip impersonation")) {
+      reasons.push("Possible VIP impersonation from a non-org domain.");
+    }
 
     const spf = (auth.spf || "").toLowerCase();
     const dkim = (auth.dkim || "").toLowerCase();
