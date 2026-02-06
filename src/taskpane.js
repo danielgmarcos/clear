@@ -81,9 +81,18 @@
     const reasons = [];
     const signals = Array.isArray(payload.signals) ? payload.signals : [];
     const auth = payload.auth_results || {};
+    const urlAssessments = Array.isArray(payload.model_url_assessments)
+      ? payload.model_url_assessments
+      : [];
 
     if (payload.feed_hit) {
       reasons.push("A link matches a known phishing feed.");
+    }
+    if (payload.model_has_phishing_url) {
+      reasons.push("A link was flagged as suspicious by the AI model.");
+    }
+    if (payload.link_mismatch) {
+      reasons.push("A link's display text does not match its actual destination.");
     }
     if (typeof payload.domain_age_days === "number" && payload.domain_age_days < 30) {
       reasons.push("A linked domain is very new (less than 30 days old).");
@@ -118,6 +127,13 @@
       reasons.push(...signals.map((s) => s.replace(/\s*\(\+\d+\)\s*/g, "")));
     }
 
+    if (!reasons.length && urlAssessments.length) {
+      const flagged = urlAssessments.filter((item) => /suspicious|malicious/i.test(item.verdict || ""));
+      if (flagged.length) {
+        reasons.push("A link looks suspicious based on model analysis.");
+      }
+    }
+
     return reasons.slice(0, 4);
   }
 
@@ -139,6 +155,11 @@
     const score = extractScore(payload);
     const reasons = buildUserReasons(payload);
     const modelReasoning = payload.model_reasoning || "";
+    const intent = payload.model_intent || payload.intent || "";
+    const intentConfidence = Number(payload.model_intent_confidence ?? payload.intent_confidence);
+    const urlAssessments = Array.isArray(payload.model_url_assessments)
+      ? payload.model_url_assessments
+      : [];
 
     let summary = "We didn’t find strong phishing indicators.";
     if (/phish|malicious/i.test(verdict)) {
@@ -149,10 +170,26 @@
 
     const scoreLine = Number.isFinite(score) ? ` Risk score: ${score}%.` : "";
     const modelLine = modelReasoning ? ` ${modelReasoning}` : "";
+    const intentLine =
+      intent && intent.toLowerCase() !== "benign"
+        ? ` Intent: ${intent}${Number.isFinite(intentConfidence) ? ` (${intentConfidence}%)` : ""}.`
+        : "";
 
     const bullets = reasons.length
       ? `<ul>${reasons.map((r) => `<li>${escapeHtml(r)}</li>`).join("")}</ul>`
       : "<p class=\"muted\">No specific red flags were detected.</p>";
+
+    const urlLines = urlAssessments.length
+      ? `<ul>${urlAssessments
+          .slice(0, 4)
+          .map(
+            (u) =>
+              `<li>${escapeHtml(u.url || "")} — ${escapeHtml(u.verdict || "unknown")}${
+                u.reason ? ` (${escapeHtml(u.reason)})` : ""
+              }</li>`
+          )
+          .join("")}</ul>`
+      : "";
 
     let raw = "";
     try {
@@ -162,8 +199,9 @@
     }
 
     return `
-      <p><strong>${escapeHtml(verdict)}</strong> — ${escapeHtml(summary + scoreLine + modelLine)}</p>
+      <p><strong>${escapeHtml(verdict)}</strong> — ${escapeHtml(summary + scoreLine + modelLine + intentLine)}</p>
       ${bullets}
+      ${urlLines ? `<div class="muted"><strong>URL checks</strong>${urlLines}</div>` : ""}
       ${raw ? `<details><summary>Raw details</summary><pre>${escapeHtml(raw)}</pre></details>` : ""}
     `;
   }
@@ -238,6 +276,17 @@
 
   function getApiUrl() {
     return (apiInput.value || "").trim();
+  }
+
+  function buildEndpoint(apiUrl, path) {
+    if (!apiUrl) {
+      return "";
+    }
+    const normalized = apiUrl.replace(/\/+$/, "");
+    if (/\/analyze$/i.test(normalized)) {
+      return normalized.replace(/\/analyze$/i, `/${path.replace(/^\//, "")}`);
+    }
+    return `${normalized}/${path.replace(/^\//, "")}`;
   }
 
   function loadApiUrl() {
@@ -469,16 +518,57 @@
       receivedDateTime: item.dateTimeCreated || "",
     };
 
-    setStatus("Sending for analysis...");
+    const analysisPayload = {
+      subject: payload.subject,
+      body: bodyText,
+      body_html: bodyHtml,
+      sender_name: payload.from ? payload.from.name : "",
+      sender_email: payload.from ? payload.from.address : "",
+      url: links && links.length ? links[0] : "",
+      urls: links || [],
+      headers,
+    };
+
+    setStatus("Checking previous scans...");
     updateVerdict(null, "Analyzing...");
 
     try {
+      let cachedPayload = null;
+      const statusUrl = buildEndpoint(apiUrl, "/scan-status");
+      if (statusUrl) {
+        const statusRes = await fetch(statusUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(analysisPayload),
+        });
+        if (statusRes.ok) {
+          const statusData = await statusRes.json();
+          if (statusData.cached_result) {
+            cachedPayload = statusData.cached_result;
+            cachedPayload.cached = true;
+          }
+        }
+      }
+
+      if (cachedPayload) {
+        setStatus("Using cached analysis.");
+        setResult(buildHumanReasoning(cachedPayload));
+        const verdictText = extractVerdict(cachedPayload);
+        updateVerdict(extractScore(cachedPayload), verdictText);
+        toggleReasoning(true, buildUserReasons(cachedPayload));
+        if (verdictText && /phish|malicious|suspicious/i.test(verdictText)) {
+          togglePhishingAction(true);
+        }
+        return;
+      }
+
+      setStatus("Sending for analysis...");
       const response = await fetch(apiUrl, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(payload),
+        body: JSON.stringify(analysisPayload),
       });
 
       const text = await response.text();
